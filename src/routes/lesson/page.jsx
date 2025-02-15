@@ -1,11 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Upload, Select, message, Spin } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
-import axios from 'axios';
-import {LessonApi} from '../../api/lessonApi';
-import {coursesApi } from '../../api/coursesApi'
-
-// API Services
+import { LessonApi } from '../../api/lessonApi';
+import { coursesApi } from '../../api/coursesApi';
 
 const LessonPage = () => {
   const [data, setData] = useState([]);
@@ -13,6 +10,7 @@ const LessonPage = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [courses, setCourses] = useState([]);
   const [uploadingLessons, setUploadingLessons] = useState(new Set());
+  const [modalMode, setModalMode] = useState('create');
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -27,8 +25,8 @@ const LessonPage = () => {
       setLoading(false);
     } catch (error) {
       setLoading(false);
-      message.error('Failed to fetch lessons');
-      console.error('Fetch lessons error:', error);
+      message.error('Không thể tải danh sách bài học');
+      console.error('Lỗi tải bài học:', error);
     }
   };
 
@@ -37,111 +35,134 @@ const LessonPage = () => {
       const response = await coursesApi.getCourses();
       setCourses(response.data);
     } catch (error) {
-      message.error('Failed to fetch courses');
-      console.error('Fetch courses error:', error);
+      message.error('Không thể tải danh sách khóa học');
+      console.error('Lỗi tải khóa học:', error);
     }
   };
 
   const handleEdit = (record) => {
-    form.setFieldsValue(record);
+    setModalMode('update');
+    form.setFieldsValue({
+      ...record,
+      lesson_type: record.lesson_type
+    });
     setIsModalVisible(true);
   };
 
   const handleDelete = (record) => {
     Modal.confirm({
-      title: 'Are you sure you want to delete this lesson?',
+      title: 'Bạn có chắc chắn muốn xóa bài học này?',
       onOk: async () => {
         try {
           await LessonApi.deleteLesson(record.id);
           fetchLessons();
-          message.success('Lesson deleted successfully');
+          message.success('Xóa bài học thành công');
         } catch (error) {
-          message.error('Failed to delete lesson');
-          console.error('Delete lesson error:', error);
+          message.error('Không thể xóa bài học');
+          console.error('Lỗi xóa bài học:', error);
         }
       },
     });
   };
 
-  const uploadVideo = async (lessonId, videoFile) => {
+  const uploadVideo = async (lessonId, file) => {
     try {
       setUploadingLessons(prev => new Set([...prev, lessonId]));
-
       const formData = new FormData();
-      formData.append('file', videoFile);
-
-      // Log FormData content for debugging
-      for (let pair of formData.entries()) {
-        console.log('FormData content:', pair[0], pair[1]);
-      }
-
+      formData.append('file', file);
       const uploadResponse = await LessonApi.uploadVideo(formData);
-      console.log('Upload video response:', uploadResponse.data);
       
-      if (uploadResponse.data && uploadResponse.data.url) {
+      if (uploadResponse.data?.url) {
         await LessonApi.updateVideoURL({
           lesson_id: lessonId,
           video_url: uploadResponse.data.url
         });
-      } else {
-        throw new Error('Invalid upload response');
+        message.success('Tải lên video thành công');
       }
-
-      setUploadingLessons(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(lessonId);
-        return newSet;
-      });
-
       await fetchLessons();
-      message.success('Video uploaded successfully');
     } catch (error) {
+      message.error('Không thể tải lên video');
+      console.error('Lỗi tải lên video:', error);
+    } finally {
       setUploadingLessons(prev => {
         const newSet = new Set(prev);
         newSet.delete(lessonId);
         return newSet;
       });
-      message.error('Failed to upload video');
-      console.error('Upload video error:', error);
     }
+  };
+
+  const beforeUpload = (file) => {
+    const isVideo = file.type.startsWith('video/');
+    const validDocumentTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    ];
+    
+    if (!isVideo && !validDocumentTypes.includes(file.type)) {
+      message.error('Chỉ được phép tải lên video hoặc tài liệu (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX)!');
+      return false;
+    }
+
+    const maxSize = isVideo ? 500 : 50;
+    if (file.size / 1024 / 1024 > maxSize) {
+      message.error(`File phải nhỏ hơn ${maxSize}MB!`);
+      return false;
+    }
+
+    return false;
   };
 
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      console.log('Form values:', values);
+      const file = values.file_upload?.[0]?.originFileObj;
+      
+      if (modalMode === 'create' && !file) {
+        message.error('Vui lòng tải lên file!');
+        return;
+      }
 
-      if (values.id) {
-        await LessonApi.updateLesson(values.id, values);
-        message.success('Lesson updated successfully');
+      let lesson_type = values.lesson_type;
+      if (file) {
+        lesson_type = file.type.startsWith('video/') ? 'video' : 'file';
+      }
+
+      const lessonData = {
+        course_id: values.course_id,
+        lesson_name: values.lesson_name,
+        type: lesson_type
+      };
+
+      if (modalMode === 'update') {
+        await LessonApi.updateLesson(values.id, lessonData);
+
+        await uploadVideo(values.id, file);
+        
+        message.success('Cập nhật bài học thành công');
       } else {
-        // Create lesson first
-        const lessonResponse = await LessonApi.createLesson({
-          course_id: values.course_id,
-          lesson_name: values.lesson_name
-        });
-        
-        message.success('Lesson created successfully');
-        
-        // Start background video upload if video is provided
-        if (values.lesson_video?.[0]?.originFileObj) {
-          console.log('Starting video upload for file:', values.lesson_video[0].originFileObj);
-          uploadVideo(lessonResponse.data.id, values.lesson_video[0].originFileObj);
-        }
+        const lessonResponse = await LessonApi.createLesson(lessonData);
+          await uploadVideo(lessonResponse.data.id, file);
+        message.success('Tạo bài học thành công');
       }
 
       setIsModalVisible(false);
       form.resetFields();
       await fetchLessons();
     } catch (error) {
-      message.error('Failed to save lesson');
-      console.error('Create/Update lesson error:', error);
+      message.error('Không thể lưu bài học');
+      console.error('Lỗi tạo/cập nhật bài học:', error);
     }
   };
 
   const truncateUrl = (url) => {
-    const maxLength = 50; // Adjust the length as needed
-    return url.length > maxLength ? `${url.substring(0, maxLength)}...` : url;
+    const maxLength = 50;
+    return url?.length > maxLength ? `${url.substring(0, maxLength)}...` : url;
   };
 
   const columns = [
@@ -149,7 +170,7 @@ const LessonPage = () => {
       title: 'Khóa học',
       dataIndex: 'course',
       key: 'course',
-      render: (course) => course ? course.course_name : 'Unknown'
+      render: (course) => course?.course_name || 'Không xác định'
     },
     {
       title: 'Bài học',
@@ -157,27 +178,28 @@ const LessonPage = () => {
       key: 'lesson_name',
     },
     {
-      title: 'Đường dẫn video',
-      dataIndex: 'video_url',
-      key: 'video_url',
-      render: (video_url, record) => (
-        uploadingLessons.has(record.id) ? (
+      title: 'Loại bài học',
+      dataIndex: 'lesson_type',
+      key: 'lesson_type',
+      render: (type) => type === 'video' ? 'Bài học video' : 'Bài học file'
+    },
+    {
+      title: 'Đường dẫn',
+      key: 'resource_url',
+      render: (_, record) => {
+        const url = record.video_url ;
+        return uploadingLessons.has(record.id) ? (
           <Space>
             <Spin />
-            <span>Uploading video...</span>
+            <span>Đang tải lên...</span>
           </Space>
         ) : (
-          <a href={video_url} target="_blank" rel="noopener noreferrer">
-            {truncateUrl(video_url)}
+          <a href={url} target="_blank" rel="noopener noreferrer">
+            {truncateUrl(url || '')}
           </a>
-        )
-      )
+        );
+      }
     },
-    // {
-    //   title: 'Lesson Duration',
-    //   dataIndex: 'lesson_duration',
-    //   key: 'lesson_duration',
-    // },
     {
       title: 'Hành động',
       key: 'actions',
@@ -190,26 +212,18 @@ const LessonPage = () => {
     },
   ];
 
-  const beforeUpload = (file) => {
-    // Add any file validation here
-    const isVideo = file.type.startsWith('video/');
-    if (!isVideo) {
-      message.error('Bạn phải chọn file !');
-    }
-    
-    const isLt500M = file.size / 1024 / 1024 < 500;
-    if (!isLt500M) {
-      message.error('Dung lượng video nhỏ hơn 500MB!');
-    }
-    
-    return false; // Return false to prevent auto upload
-  };
-
   return (
     <div className="p-6">
       <div className="mb-4">
-        <Button type="primary" onClick={() => setIsModalVisible(true)}>
-          Create Lesson
+        <Button 
+          type="primary" 
+          onClick={() => {
+            setModalMode('create');
+            setIsModalVisible(true);
+            form.resetFields();
+          }}
+        >
+          Tạo bài học mới
         </Button>
       </div>
 
@@ -222,31 +236,35 @@ const LessonPage = () => {
       />
 
       <Modal
-        title={form.getFieldValue('id') ? "Edit Lesson" : "Create Lesson"}
+        title={modalMode === 'update' ? "Chỉnh sửa bài học" : "Tạo bài học mới"}
         visible={isModalVisible}
         onOk={handleCreate}
         onCancel={() => {
           setIsModalVisible(false);
           form.resetFields();
         }}
-        okText={form.getFieldValue('id') ? "Update" : "Create"}
+        okText={modalMode === 'update' ? "Cập nhật" : "Tạo mới"}
+        cancelText="Hủy"
         width={600}
       >
         <Form form={form} layout="vertical">
           <Form.Item name="id" hidden>
             <Input />
           </Form.Item>
+          <Form.Item name="lesson_type" hidden>
+            <Input />
+          </Form.Item>
 
           <Form.Item
             name="course_id"
             label="Khóa học"
-            rules={[{ required: true, message: 'Please select a course!' }]}
+            rules={[{ required: true, message: 'Vui lòng chọn khóa học!' }]}
           >
             <Select
-              placeholder="Select a course"
+              placeholder="Chọn khóa học"
               loading={!courses || courses.length === 0}
             >
-              {courses && courses.map(course => (
+              {courses.map(course => (
                 <Select.Option key={course.id} value={course.id}>
                   {course.course_name}
                 </Select.Option>
@@ -256,26 +274,26 @@ const LessonPage = () => {
 
           <Form.Item
             name="lesson_name"
-            label="Bài học"
-            rules={[{ required: true, message: 'Please input the lesson name!' }]}
+            label="Tên bài học"
+            rules={[{ required: true, message: 'Vui lòng nhập tên bài học!' }]}
           >
-            <Input placeholder="Enter lesson name" />
+            <Input placeholder="Nhập tên bài học" />
           </Form.Item>
 
           <Form.Item
-            name="lesson_video"
-            label="Upload Video"
+            name="file_upload"
+            label="Tải lên file"
             valuePropName="fileList"
-            getValueFromEvent={e => Array.isArray(e) ? e : e && e.fileList}
-            rules={[{ required: !form.getFieldValue('id'), message: 'Please upload a video!' }]}
+            getValueFromEvent={e => Array.isArray(e) ? e : e?.fileList}
+            rules={[{ required: modalMode === 'create', message: 'Vui lòng tải lên file!' }]}
           >
             <Upload
               beforeUpload={beforeUpload}
               maxCount={1}
-              accept="video/*"
+              accept="video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
               listType="text"
             >
-              <Button icon={<UploadOutlined />}>Select Video</Button>
+              <Button icon={<UploadOutlined />}>Chọn file</Button>
             </Upload>
           </Form.Item>
         </Form>
