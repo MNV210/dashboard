@@ -162,7 +162,7 @@ const LessonPage = () => {
 
   const truncateUrl = (url) => {
     const maxLength = 50;
-    return url?.length > maxLength ? `${url.substring(0, maxLength)}...` : url;
+    return url && url.length > maxLength ? `${url.substring(0, maxLength)}...` : url;
   };
 
   const columns = [
@@ -185,7 +185,7 @@ const LessonPage = () => {
     },
     {
       title: 'Đường dẫn',
-      key: 'resource_url',
+      key: 'video_url',
       render: (_, record) => {
         const url = record.video_url ;
         return uploadingLessons.has(record.id) ? (
