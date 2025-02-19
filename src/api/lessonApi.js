@@ -20,6 +20,9 @@ export const LessonApi = {
     async updateVideoURL(data) {
         const response = await axios.post('http://localhost:8000/api/lesson/update-video-URL', data);
         return response.data;
+    }, async getInfomationLesson(lesson_id) {
+        const response = await axios.get(`http://localhost:8000/api/lessons/${lesson_id}`);
+        return response.data;
     },
     async uploadVideo(data) {
         const response = await axios.post('http://localhost:8001/upload/', data);

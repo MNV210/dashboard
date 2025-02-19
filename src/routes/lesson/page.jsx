@@ -3,6 +3,7 @@ import { Table, Button, Space, Modal, Form, Input, Upload, Select, message, Spin
 import { UploadOutlined } from '@ant-design/icons';
 import { LessonApi } from '../../api/lessonApi';
 import { coursesApi } from '../../api/coursesApi';
+import axios from 'axios';
 
 const LessonPage = () => {
   const [data, setData] = useState([]);
@@ -77,7 +78,18 @@ const LessonPage = () => {
           lesson_id: lessonId,
           video_url: uploadResponse.data.url
         });
+
         message.success('Tải lên video thành công');
+
+        const lesson_infomation = await LessonApi.getInfomationLesson(lessonId);
+        console.log('file_url',uploadResponse.data.url,'file_type',lesson_infomation.data.type);
+        const data = [
+          'file_url',uploadResponse.data.url,
+          'file_type',lesson_infomation.data.type
+        ]
+        await axios.post(`http://3.238.200.66/update_file_data`, 
+            data
+          )
       }
       await fetchLessons();
     } catch (error) {
@@ -146,13 +158,14 @@ const LessonPage = () => {
         
         message.success('Cập nhật bài học thành công');
       } else {
-        const lessonResponse = await LessonApi.createLesson(lessonData);
+          const lessonResponse = await LessonApi.createLesson(lessonData);
+          message.success('Tạo bài học thành công');
+          setIsModalVisible(false);
+          form.resetFields();
           await uploadVideo(lessonResponse.data.id, file);
-        message.success('Tạo bài học thành công');
       }
 
-      setIsModalVisible(false);
-      form.resetFields();
+      
       await fetchLessons();
     } catch (error) {
       message.error('Không thể lưu bài học');
