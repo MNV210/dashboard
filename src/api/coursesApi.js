@@ -16,5 +16,13 @@ export const coursesApi = {
     async createCourse(data) {
         const response = await axios.post('http://localhost:8000/api/courses', data);
         return response.data;
-    }
+    },
+    async updateFileTraining(data) {
+        const response = await axios.post(`http://localhost:8000/api/courses/update-file-training`,data);
+        return response.data;
+    },
+    async getInfomationCourse(course_id) {
+        const response = await axios.get(`http://localhost:8000/api/courses/${course_id}`);
+        return response.data;
+    },
 }

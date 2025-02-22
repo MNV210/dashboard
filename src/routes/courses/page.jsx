@@ -6,6 +6,8 @@ import { coursesApi } from '../../api/coursesApi';
 import { userApi } from '../../api/userApi';
 import moment from 'moment'; // Import moment for date formatting
 import defaultImage from '../../assets/default.jpg';
+import { LessonApi } from '../../api/lessonApi';
+import { AIApi } from '../../api/AI';
 
 const CoursesPage = () => {
   const [data, setData] = useState([]);
@@ -66,11 +68,51 @@ const CoursesPage = () => {
     }
   };
 
+
+  const uploadFileTraining = async (course_id, file) => {
+      if (!file) return;
+      try {
+        // setUploadingLessons(prev => new Set([...prev, lessonId]));
+        const formData = new FormData();
+        formData.append('file', file);
+  
+        const uploadResponse = await LessonApi.uploadVideo(formData);
+        if (uploadResponse.data?.url) {
+          await coursesApi.updateFileTraining({ 
+            course_id: course_id, 
+            file_url: uploadResponse.data.url 
+          });
+          message.success('Tải lên video thành công');
+  
+          // const CourseInfomation = await coursesApi.getInfomationCourse(course_id);
+          await AIApi.uploadFileToAI({
+            file_url: uploadResponse.data.url,
+            file_type: 'file'
+          });
+        }
+        
+        const response = await coursesApi.getCourses();
+        setData(response.data);
+      } catch (error) {
+        message.error('Tải tài liệu lên thất bại');
+        console.error('Lỗi tải lên video:', error);
+      } finally {
+        // setUploadingLessons(prev => {
+        //   const newSet = new Set(prev);
+        //   // newSet.delete(lessonId);
+        //   return newSet;
+        // });
+      }
+    };
+  
+
   const handleCreateOrUpdate = async (formData) => {
     try {
       const formDataWithImage = new FormData();
       Object.keys(formData).forEach((key) => {
         if (key == "image_url" && formData[key] && formData[key].length > 0) {
+          formDataWithImage.append(key, formData[key][0].originFileObj); // Lấy file thực tế
+        } else if (key == "uploadfile" && formData[key] && formData[key].length > 0) {
           formDataWithImage.append(key, formData[key][0].originFileObj); // Lấy file thực tế
         } else {
           formDataWithImage.append(key, formData[key]);
@@ -82,8 +124,14 @@ const CoursesPage = () => {
         await coursesApi.updateCourse(editingCourse.id, formDataWithImage);
         message.success('Cập nhật thành công');
       } else {
-        await coursesApi.createCourse(formDataWithImage);
-        message.success('Thêm mới thành công');
+        await coursesApi.createCourse(formDataWithImage).then((res) => {
+          formDataWithImage.append('course_id', res.data.id);
+          message.success('Thêm mới thành công, File dữ liệu đang được upload');
+          uploadFileTraining(formDataWithImage.get('course_id'), formDataWithImage.get('uploadfile'));
+        });
+
+        // await coursesApi.updateFileTraining(formDataWithImage);
+        // message.success('Upload file dữ liệu thành công');
       }
       setIsModalVisible(false);
       reset();
@@ -227,6 +275,24 @@ const CoursesPage = () => {
                 </Upload>
               )}
               // rules={editingCourse ? {} : { required: "Image is required" }} // Không yêu cầu khi chỉnh sửa
+            />
+          </Form.Item>
+          <Form.Item label="Upload File" validateStatus={errors.uploadfile && "error"} help={errors.uploadfile && "File is required"}>
+            <Controller
+              name="uploadfile"
+              control={control}
+              defaultValue={[]} // Đảm bảo giá trị mặc định là mảng rỗng
+              render={({ field: { onChange, value } }) => (
+                <Upload
+                  listType="text"
+                  beforeUpload={() => false} // Ngăn việc upload tự động
+                  onChange={({ fileList }) => onChange(fileList)} // Cập nhật fileList vào state
+                  fileList={value}
+                >
+                  <Button icon={<UploadOutlined />}>Upload</Button>
+                </Upload>
+              )}
+              rules={{ required: "File is required" }} // Thêm yêu cầu bắt buộc
             />
           </Form.Item>
           <Form.Item>
