@@ -8,6 +8,7 @@ import moment from 'moment'; // Import moment for date formatting
 import defaultImage from '../../assets/default.jpg';
 import { LessonApi } from '../../api/lessonApi';
 import { AIApi } from '../../api/AI';
+import ModalUploadFileTraining from './modalUploadFileTraining';
 
 const CoursesPage = () => {
   const [data, setData] = useState([]);
@@ -18,6 +19,8 @@ const CoursesPage = () => {
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState(null);
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
+  const [isUploadModalVisible, setIsUploadModalVisible] = useState(false);
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
   const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm();
 
   useEffect(() => {
@@ -85,10 +88,10 @@ const CoursesPage = () => {
           message.success('Tải lên video thành công');
   
           // const CourseInfomation = await coursesApi.getInfomationCourse(course_id);
-          await AIApi.uploadFileToAI({
-            file_url: uploadResponse.data.url,
-            file_type: 'file'
-          });
+          // await AIApi.uploadFileToAI({
+          //   file_url: uploadResponse.data.url,
+          //   file_type: 'file'
+          // });
         }
         
         const response = await coursesApi.getCourses();
@@ -112,7 +115,8 @@ const CoursesPage = () => {
       Object.keys(formData).forEach((key) => {
         if (key == "image_url" && formData[key] && formData[key].length > 0) {
           formDataWithImage.append(key, formData[key][0].originFileObj); // Lấy file thực tế
-        } else if (key == "uploadfile" && formData[key] && formData[key].length > 0) {
+        }
+        if (key == "uploadfile" && formData[key] && formData[key].length > 0) {
           formDataWithImage.append(key, formData[key][0].originFileObj); // Lấy file thực tế
         } else {
           formDataWithImage.append(key, formData[key]);
@@ -142,6 +146,16 @@ const CoursesPage = () => {
     } catch (error) {
       message.error('Failed to create/update course');
     }
+  };
+
+  const handleUploadFile = (courseId) => {
+    setSelectedCourseId(courseId);
+    setIsUploadModalVisible(true);
+  };
+
+  const handleUploadModalClose = () => {
+    setSelectedCourseId(null);
+    setIsUploadModalVisible(false);
   };
 
   const columns = [
@@ -189,6 +203,7 @@ const CoursesPage = () => {
         <Space size="middle">
           <Button onClick={() => handleEdit(record)}>Chỉnh sửa</Button>
           <Button onClick={() => showDeleteConfirm(record)} danger>Xóa</Button>
+          <Button onClick={() => handleUploadFile(record.id)}>Thêm File Dữ Liệu</Button>
         </Space>
       ),
     },
@@ -209,9 +224,17 @@ const CoursesPage = () => {
           });
           setEditingCourse(null);
         }}
+        className='mb-5'
       >
-        Create
+        Thêm mới
       </Button>
+      {/* <Button
+        type="primary"
+        onClick={() => setIsUploadModalVisible(true)}
+        style={{ marginLeft: 10 }}
+      >
+        Thêm File Dữ Liệu
+      </Button> */}
       <Table columns={columns} dataSource={data} loading={loading} rowKey="id" />
       <Modal
         title={editingCourse ? "Chỉnh sửa khóa học" : "Tạo mới khóa học"}
@@ -224,7 +247,7 @@ const CoursesPage = () => {
         footer={null}
       >
         <Form onFinish={handleSubmit(handleCreateOrUpdate)} layout="vertical">
-          <Form.Item label="Tên khóa học" validateStatus={errors.course_name && "error"} help={errors.course_name && "Tên khóa học là bắt buộc"}>
+          <Form.Item label="Tên khóa học" validateStatus={errors.course_name && "error"} help={errors.course_name && "Tên khóa học là bắt buộc"} required>
             <Controller
               name="course_name"
               control={control}
@@ -233,7 +256,7 @@ const CoursesPage = () => {
               rules={{ required: "Tên khóa học là bắt buộc" }}
             />
           </Form.Item>
-          <Form.Item label="Mô tả" validateStatus={errors.course_description && "error"} help={errors.course_description && "Mô tả là bắt buộc"}>
+          <Form.Item label="Mô tả" validateStatus={errors.course_description && "error"} help={errors.course_description && "Mô tả là bắt buộc"} >
             <Controller
               name="course_description"
               control={control}
@@ -242,7 +265,7 @@ const CoursesPage = () => {
               // rules={{ required: "Mô tả là bắt buộc" }}
             />
           </Form.Item>
-          <Form.Item label="Giáo viên" validateStatus={errors.teacher_id && "error"} help={errors.teacher_id && "Giáo viên là bắt buộc"}>
+          <Form.Item label="Giáo viên" validateStatus={errors.teacher_id && "error"} help={errors.teacher_id && "Giáo viên là bắt buộc"} required>
             <Controller
               name="teacher_id"
               control={control}
@@ -259,7 +282,7 @@ const CoursesPage = () => {
               rules={{ required: "Giáo viên là bắt buộc" }}
             />
           </Form.Item>
-          <Form.Item label="Upload Image" validateStatus={errors.thumnail && "error"} help={errors.thumnail && "Image is required"}>
+          <Form.Item label="Ảnh khóa học" validateStatus={errors.thumnail && "error"} help={errors.thumnail && "Image is required"}>
             <Controller
               name="image_url"
               control={control}
@@ -277,7 +300,7 @@ const CoursesPage = () => {
               // rules={editingCourse ? {} : { required: "Image is required" }} // Không yêu cầu khi chỉnh sửa
             />
           </Form.Item>
-          <Form.Item label="Upload File" validateStatus={errors.uploadfile && "error"} help={errors.uploadfile && "File is required"}>
+          <Form.Item label="Tài liệu (Giúp Ai traning)" validateStatus={errors.uploadfile && "error"} help={errors.uploadfile && "File is required"} required>
             <Controller
               name="uploadfile"
               control={control}
@@ -292,7 +315,7 @@ const CoursesPage = () => {
                   <Button icon={<UploadOutlined />}>Upload</Button>
                 </Upload>
               )}
-              rules={{ required: "File is required" }} // Thêm yêu cầu bắt buộc
+              rules={{ required: "Thêm dữ liệu cho AI traning" }} // Thêm yêu cầu bắt buộc
             />
           </Form.Item>
           <Form.Item>
@@ -313,6 +336,11 @@ const CoursesPage = () => {
       >
         <p>Bạn có muốn xóa khóa học này không?</p>
       </Modal>
+      <ModalUploadFileTraining
+        visible={isUploadModalVisible}
+        onClose={handleUploadModalClose}
+        courseId={selectedCourseId}
+      />
     </div>
   );
 };
