@@ -28,7 +28,7 @@ const CoursesPage = () => {
       try {
         const response = await coursesApi.getCourses();
         setData(response.data);
-        const usersResponse = await userApi.getUsers(); // Assuming this is the correct path
+        const usersResponse = await userApi.getRoleNotUser(); // Assuming this is the correct path
         setUsers(usersResponse.data);
       } catch (error) {
       } finally {

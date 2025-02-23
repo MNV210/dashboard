@@ -223,9 +223,9 @@ const LessonPage = () => {
           >
             <Select
               placeholder="Chọn khóa học"
-              loading={courses.length === 0}
+              loading={courses?.length === 0}
             >
-              {courses.map(course => (
+              {courses?.map(course => (
                 <Select.Option key={course.id} value={course.id}>
                   {course.course_name}
                 </Select.Option>

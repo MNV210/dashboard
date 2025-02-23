@@ -17,4 +17,8 @@ export const userApi = {
         const response = await axios.post('http://localhost:8000/api/users', data);
         return response.data;
     },
+    async getRoleNotUser() {
+        const response = await axios.get('http://localhost:8000/api/role_not_user');
+        return response.data
+    }
 };
